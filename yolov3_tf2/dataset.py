@@ -1,6 +1,9 @@
+ver=1.04
+print("dataset.py version-->", str(ver)) 
+
 import tensorflow as tf
 from absl.flags import FLAGS
-
+import os
 @tf.function
 def transform_targets_for_output(y_true, grid_size, anchor_idxs):
     # y_true: (N, boxes, (x1, y1, x2, y2, class, best_anchor))
@@ -122,10 +125,22 @@ def load_tfrecord_dataset(file_pattern, class_file, size=416):
     LINE_NUMBER = -1  # TODO: use tf.lookup.TextFileIndex.LINE_NUMBER
     class_table = tf.lookup.StaticHashTable(tf.lookup.TextFileInitializer(
         class_file, tf.string, 0, tf.int64, LINE_NUMBER, delimiter="\n"), -1)
-
-    files = tf.data.Dataset.list_files(file_pattern)
-    dataset = files.flat_map(tf.data.TFRecordDataset)
+    
+    if(not file_pattern.endswith(".tfrecord")):
+        file_pattern = [file_pattern + p for p in os.listdir(file_pattern) if p.endswith(".tfrecord") ]
+        print("List File Pattern. Len----> ", str(len(file_pattern)))
+    else:
+        print("Single File Pattern (Non list).")
+    # files = tf.data.Dataset.list_files(file_pattern)
+    # dataset = files.flat_map(tf.data.TFRecordDataset)
+    dataset = tf.data.TFRecordDataset(file_pattern,
+        compression_type=None,    # or 'GZIP', 'ZLIB' if compress you data.
+        buffer_size=10240,        # any buffer size you want or 0 means no buffering
+        num_parallel_reads=os.cpu_count()  # or 0 means sequentially reading
+    )
     return dataset.map(lambda x: parse_tfrecord(x, class_table, size))
+
+
 
 
 def load_fake_dataset():

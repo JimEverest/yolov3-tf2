@@ -1,9 +1,14 @@
+ver=1.07
+print("train.py version-->", str(ver)) 
+
+
 from absl import app, flags, logging
 from absl.flags import FLAGS
 
 import tensorflow as tf
 import numpy as np
 import cv2
+import os
 from tensorflow.keras.callbacks import (
     ReduceLROnPlateau,
     EarlyStopping,
@@ -24,6 +29,7 @@ flags.DEFINE_boolean('tiny', False, 'yolov3 or yolov3-tiny')
 flags.DEFINE_string('weights', './checkpoints/yolov3.tf',
                     'path to weights file')
 flags.DEFINE_string('classes', './data/coco.names', 'path to classes file')
+flags.DEFINE_string('model_path','none','path to save model.')
 flags.DEFINE_enum('mode', 'fit', ['fit', 'eager_fit', 'eager_tf'],
                   'fit: model.fit, '
                   'eager_fit: model.fit(run_eagerly=True), '
@@ -39,10 +45,13 @@ flags.DEFINE_integer('size', 416, 'image size')
 flags.DEFINE_integer('epochs', 2, 'number of epochs')
 flags.DEFINE_integer('batch_size', 8, 'batch size')
 flags.DEFINE_float('learning_rate', 1e-3, 'learning rate')
+flags.DEFINE_float('decay', 0.1, 'learning rate decay')
 flags.DEFINE_integer('num_classes', 80, 'number of classes in the model')
 flags.DEFINE_integer('weights_num_classes', None, 'specify num class for `weights` file if different, '
                      'useful in transfer learning with different number of classes')
 
+#New:
+flags.DEFINE_float('train_ratio', 0.7, 'train set ratio')
 
 def main(_argv):
     physical_devices = tf.config.experimental.list_physical_devices('GPU')
@@ -60,10 +69,35 @@ def main(_argv):
         anchor_masks = yolo_anchor_masks
 
     train_dataset = dataset.load_fake_dataset()
+    val_dataset = dataset.load_fake_dataset()
+    #new:
     if FLAGS.dataset:
-        train_dataset = dataset.load_tfrecord_dataset(
-            FLAGS.dataset, FLAGS.classes, FLAGS.size)
-    train_dataset = train_dataset.shuffle(buffer_size=512)
+        print("Loading Full set...")
+        full_dataset = dataset.load_tfrecord_dataset(FLAGS.dataset, FLAGS.classes, FLAGS.size)
+        full_dataset = full_dataset.shuffle(buffer_size=512)
+        len_dataset = sum(1 for _ in full_dataset)
+        print("All_dataset------> ", str(len_dataset))
+
+        train_size = int(FLAGS.train_ratio * len_dataset)
+        print("Train_dataset----> ", str(train_size))
+        print("Loading Train set...")
+        # train_dataset = full_dataset.take(train_size)
+        # val_dataset = full_dataset.skip(val_size)
+
+        train_dataset = full_dataset.take(train_size)
+        val_dataset = full_dataset.skip(train_size)
+
+        len_val_dataset = sum(1 for _ in val_dataset)
+        print("Vali_dataset----->", str(len_val_dataset))
+        # return None
+
+    #old:
+    # if FLAGS.dataset:
+    #     train_dataset = dataset.load_tfrecord_dataset(
+    #         FLAGS.dataset, FLAGS.classes, FLAGS.size)
+    # train_dataset = train_dataset.shuffle(buffer_size=512)
+    
+
     train_dataset = train_dataset.batch(FLAGS.batch_size)
     train_dataset = train_dataset.map(lambda x, y: (
         dataset.transform_images(x, FLAGS.size),
@@ -71,10 +105,9 @@ def main(_argv):
     train_dataset = train_dataset.prefetch(
         buffer_size=tf.data.experimental.AUTOTUNE)
 
-    val_dataset = dataset.load_fake_dataset()
-    if FLAGS.val_dataset:
-        val_dataset = dataset.load_tfrecord_dataset(
-            FLAGS.val_dataset, FLAGS.classes, FLAGS.size)
+    # if FLAGS.val_dataset:
+    #     val_dataset = dataset.load_tfrecord_dataset(
+    #         FLAGS.val_dataset, FLAGS.classes, FLAGS.size)
     val_dataset = val_dataset.batch(FLAGS.batch_size)
     val_dataset = val_dataset.map(lambda x, y: (
         dataset.transform_images(x, FLAGS.size),
@@ -168,19 +201,31 @@ def main(_argv):
 
             avg_loss.reset_states()
             avg_val_loss.reset_states()
-            model.save_weights(
-                'checkpoints/yolov3_train_{}.tf'.format(epoch))
+            model.save_weights('checkpoints/yolov3_train_{}.tf'.format(epoch))
     else:
         model.compile(optimizer=optimizer, loss=loss,
                       run_eagerly=(FLAGS.mode == 'eager_fit'))
 
-        callbacks = [
-            ReduceLROnPlateau(verbose=1),
-            EarlyStopping(patience=3, verbose=1),
-            ModelCheckpoint('checkpoints/yolov3_train_{epoch}.tf',
-                            verbose=1, save_weights_only=True),
-            TensorBoard(log_dir='logs')
-        ]
+        model_path=""
+        if FLAGS.model_path == 'none':
+            pass  # Nothing to do
+        else:
+            model_path = FLAGS.model_path
+            os.makedirs(model_path,exist_ok=True)
+            print("Path: "+model_path + " Created...")
+
+        checkpoint = ModelCheckpoint(model_path + 'ep{epoch:03d}-loss{loss:.3f}-val_loss{val_loss:.3f}.tf', monitor='val_loss', save_weights_only=True, save_best_only=True, period=1)
+        # checkpoint = ModelCheckpoint(checkpoint + 'model_best.h5', monitor='val_loss', save_weights_only=True, save_best_only=True, period=3)
+        reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=FLAGS.decay, patience=3, verbose=1)
+        early_stopping = EarlyStopping(monitor='val_loss', min_delta=0, patience=5, verbose=1)
+        callbacks = [checkpoint,reduce_lr,early_stopping]
+        # callbacks = [
+        #     ReduceLROnPlateau(verbose=1),
+        #     EarlyStopping(patience=3, verbose=1),
+        #     ModelCheckpoint('checkpoints/yolov3_train_{epoch}.tf',
+        #                     verbose=1, save_weights_only=True),
+        #     TensorBoard(log_dir='logs')
+        # ]
 
         history = model.fit(train_dataset,
                             epochs=FLAGS.epochs,

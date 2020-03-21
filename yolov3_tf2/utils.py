@@ -1,3 +1,6 @@
+ver=1.01
+print("utils.py version-->", str(ver)) 
+
 from absl import logging
 import numpy as np
 import tensorflow as tf
@@ -111,6 +114,23 @@ def draw_outputs(img, outputs, class_names):
             class_names[int(classes[i])], objectness[i]),
             x1y1, cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (0, 0, 255), 2)
     return img
+
+def crop_outputs(img, outputs):
+    boxes, objectness, classes, nums = outputs
+    boxes, objectness, classes, nums = boxes[0], objectness[0], classes[0], nums[0]
+    wh = np.flip(img.shape[0:2])
+    imgs=[]
+    for i in range(nums):
+        x1y1 = tuple((np.array(boxes[i][0:2]) * wh).astype(np.int32))
+        x2y2 = tuple((np.array(boxes[i][2:4]) * wh).astype(np.int32))
+        x1,y1 = x1y1
+        x2,y2 = x2y2
+        w=x2-x1
+        h=y2-y1
+        crop_img = img[y1:y1+h, x1:x1+w]
+        imgs.append(crop_img)
+    return imgs
+
 
 
 def draw_labels(x, y, class_names):

@@ -1,3 +1,6 @@
+ver=1.05
+print("models.py version-->", str(ver)) 
+
 from absl import flags
 from absl.flags import FLAGS
 import numpy as np
@@ -27,6 +30,7 @@ flags.DEFINE_integer('yolo_max_boxes', 100,
 flags.DEFINE_float('yolo_iou_threshold', 0.5, 'iou threshold')
 flags.DEFINE_float('yolo_score_threshold', 0.5, 'score threshold')
 
+#!!! Where should be noticed: hardcode for 416 here.
 yolo_anchors = np.array([(10, 13), (16, 30), (33, 23), (30, 61), (62, 45),
                          (59, 119), (116, 90), (156, 198), (373, 326)],
                         np.float32) / 416
@@ -217,6 +221,10 @@ def YoloV3(size=None, channels=3, anchors=yolo_anchors,
     output_2 = YoloOutput(128, len(masks[2]), classes, name='yolo_output_2')(x)
 
     if training:
+        #Keras: Multiple outputs and multiple losses
+        #https://www.pyimagesearch.com/2018/06/04/keras-multiple-outputs-and-multiple-losses/
+        # !!! loss names <--------matchs--------> output names
+        # !!! yolo_output_0 <-----matchs-----> yolo_output_0_loss
         return Model(inputs, (output_0, output_1, output_2), name='yolov3')
 
     boxes_0 = Lambda(lambda x: yolo_boxes(x, anchors[masks[0]], classes),

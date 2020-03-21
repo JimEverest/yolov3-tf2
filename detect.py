@@ -54,6 +54,50 @@ def main(_argv):
     t2 = time.time()
     logging.info('time: {}'.format(t2 - t1))
 
+    t1 = time.time()
+    boxes, scores, classes, nums = yolo(img)
+    t2 = time.time()
+    logging.info('time3: {}'.format(t2 - t1))
+
+
+    t1 = time.time()
+    boxes, scores, classes, nums = yolo(img)
+    t2 = time.time()
+    logging.info('time4: {}'.format(t2 - t1))
+
+    t1 = time.time()
+    boxes, scores, classes, nums = yolo(img)
+    t2 = time.time()
+    logging.info('time5: {}'.format(t2 - t1))
+
+    t1 = time.time()
+    boxes, scores, classes, nums = yolo(img)
+    t2 = time.time()
+    logging.info('time6: {}'.format(t2 - t1))
+
+    t1 = time.time()
+    boxes, scores, classes, nums = yolo(img)
+    t2 = time.time()
+    logging.info('time7: {}'.format(t2 - t1))
+
+
+    t1 = time.time()
+    boxes, scores, classes, nums = yolo(img)
+    t2 = time.time()
+    logging.info('time8: {}'.format(t2 - t1))
+
+
+    t1 = time.time()
+    boxes, scores, classes, nums = yolo(img)
+    t2 = time.time()
+    logging.info('time9: {}'.format(t2 - t1))
+
+    t1 = time.time()
+    boxes, scores, classes, nums = yolo(img)
+    t2 = time.time()
+    logging.info('time10: {}'.format(t2 - t1))
+
+
     logging.info('detections:')
     for i in range(nums[0]):
         logging.info('\t{}, {}, {}'.format(class_names[int(classes[0][i])],
